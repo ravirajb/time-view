@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Time Overlap</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 2rem; }
+    select, input, button { margin: 0.5rem; padding: 0.5rem; }
+    table { margin: 2rem auto; border-collapse: collapse; }
+    td, th { padding: 0.5rem 1rem; border: 1px solid #ccc; }
+    .highlight { background-color: #d3f9d8; }
+    #timezoneWrapper { position: relative; width: 300px; margin: 0 auto; }
+    #searchZone { width: 100%; padding: 0.5rem; box-sizing: border-box; }
+    #timezones { width: 100%; height: 200px; }
+    #selectedZones { margin-top: 1rem; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>World Time Overlap</h1>
+  <p>Select base time and 1 to 5 time zones to check overlap:</p>
+  <input type="time" id="baseTime" value="12:00" />
+  <div id="timezoneWrapper">
+    <input type="text" id="searchZone" placeholder="Search timezones...">
+    <select id="timezones" multiple size="10"></select>
+  </div>
+  <div id="selectedZones"></div>
+  <button onclick="showOverlap()">Check Overlap</button>
+  <button onclick="generateMeetingLink()">Generate Google Calendar Invite</button>
+  <table id="overlapTable"></table>
+
+  <script>
+    let allTimeZones = Intl.supportedValuesOf('timeZone');
+    allTimeZones.sort((a, b) => a.localeCompare(b));
+
+    const tzSelect = document.getElementById("timezones");
+    const searchInput = document.getElementById("searchZone");
+    const selectedZonesDisplay = document.getElementById("selectedZones");
+
+    function populateTimezones(filter = "") {
+      tzSelect.innerHTML = "";
+      allTimeZones
+        .filter(zone => zone.toLowerCase().includes(filter.toLowerCase()))
+        .forEach(zone => {
+          const option = document.createElement("option");
+          option.value = zone;
+          option.textContent = zone.replace(/_/g, ' ');
+          tzSelect.appendChild(option);
+        });
+    }
+
+    function updateSelectedZonesDisplay() {
+      const selected = Array.from(tzSelect.selectedOptions).map(opt => opt.value.replace(/_/g, ' '));
+      selectedZonesDisplay.textContent = selected.length > 0 ? `Selected Timezones: ${selected.join(', ')}` : '';
+    }
+
+    tzSelect.addEventListener("change", updateSelectedZonesDisplay);
+    searchInput.addEventListener("input", () => populateTimezones(searchInput.value));
+    populateTimezones();
+
+    function showOverlap() {
+      const baseTime = document.getElementById("baseTime").value;
+      const selectedZones = Array.from(tzSelect.selectedOptions).map(opt => opt.value);
+      if (selectedZones.length < 1 || selectedZones.length > 5) {
+        alert("Please select between 1 and 5 timezones.");
+        return;
+      }
+      const baseDate = new Date();
+      const [hours, minutes] = baseTime.split(":").map(Number);
+      baseDate.setHours(hours);
+      baseDate.setMinutes(minutes);
+
+      const table = document.getElementById("overlapTable");
+      table.innerHTML = `<tr><th>Timezone</th><th>Local Time</th></tr>`;
+
+      selectedZones.forEach(zone => {
+        const formatter = new Intl.DateTimeFormat("en-US", {
+          timeZone: zone,
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false
+        });
+
+        const timeString = formatter.format(baseDate);
+        const hour = parseInt(timeString.split(":"[0]));
+        const isOverlap = hour >= 9 && hour <= 17;
+
+        table.innerHTML += `
+          <tr class="${isOverlap ? 'highlight' : ''}">
+            <td>${zone.replace(/_/g, ' ')}</td>
+            <td>${timeString}</td>
+          </tr>
+        `;
+      });
+    }
+
+    function generateMeetingLink() {
+      const baseTime = document.getElementById("baseTime").value;
+      const selectedZones = Array.from(tzSelect.selectedOptions).map(opt => opt.value);
+      if (!baseTime || selectedZones.length === 0) return;
+      const now = new Date();
+      const [h, m] = baseTime.split(":").map(Number);
+      const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+      const endDate = new Date(startDate.getTime() + 30 * 60000);
+      const pad = num => num.toString().padStart(2, '0');
+      const formatDate = d => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
+
+      const start = formatDate(startDate);
+      const end = formatDate(endDate);
+      const zones = selectedZones.join(", ");
+      const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Team+Meeting&details=Overlap+time+for:+${encodeURIComponent(zones)}&dates=${start}/${end}`;
+      window.open(gcalUrl, '_blank');
+    }
+  </script>
+</body>
+</html>
