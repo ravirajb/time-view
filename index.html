@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Find overlapping times across multiple timezones for global meetings." />
+  <meta name="robots" content="index, follow">
+  <meta property="og:title" content="World Time Overlap">
+  <meta property="og:description" content="Check time overlap across selected time zones and generate meeting invites.">
   <title>World Time Overlap</title>
   <style>
     body { font-family: sans-serif; text-align: center; padding: 2rem; }
@@ -17,17 +21,26 @@
   </style>
 </head>
 <body>
-  <h1>World Time Overlap</h1>
-  <p>Select base time and 1 to 5 time zones to check overlap:</p>
-  <input type="time" id="baseTime" value="12:00" />
-  <div id="timezoneWrapper">
-    <input type="text" id="searchZone" placeholder="Search timezones...">
-    <select id="timezones" multiple size="10"></select>
-  </div>
-  <div id="selectedZones"></div>
-  <button onclick="showOverlap()">Check Overlap</button>
-  <button onclick="generateMeetingLink()">Generate Google Calendar Invite</button>
-  <table id="overlapTable"></table>
+  <main>
+    <h1>World Time Overlap</h1>
+    <p>Select base time and 1 to 5 time zones to check overlap:</p>
+    <label for="baseTime">Select Base Time:</label>
+    <input type="time" id="baseTime" value="12:00" />
+
+    <div id="timezoneWrapper">
+      <label for="searchZone">Search Timezones:</label>
+      <input type="text" id="searchZone" placeholder="Search timezones...">
+      <label for="timezones">Select Timezones (1 to 5):</label>
+      <select id="timezones" multiple size="10" aria-label="Select Timezones"></select>
+    </div>
+
+    <div id="selectedZones"></div>
+    <button onclick="showOverlap()">Check Overlap</button>
+    <button onclick="generateMeetingLink()">Generate Google Calendar Invite</button>
+    <button onclick="generateTeamsLink()">Generate MS Teams Invite</button>
+    <button id="icalButton" style="display:none;" onclick="generateIcalLink()">Download iCal Invite</button>
+    <table id="overlapTable"></table>
+  </main>
 
   <script>
     let allTimeZones = Intl.supportedValuesOf('timeZone');
@@ -36,6 +49,7 @@
     const tzSelect = document.getElementById("timezones");
     const searchInput = document.getElementById("searchZone");
     const selectedZonesDisplay = document.getElementById("selectedZones");
+    const icalButton = document.getElementById("icalButton");
 
     function populateTimezones(filter = "") {
       tzSelect.innerHTML = "";
@@ -66,7 +80,7 @@
         return;
       }
       const baseDate = new Date();
-      const [hours, minutes] = baseTime.split(":").map(Number);
+      const [hours, minutes] = baseTime.split(":" ).map(Number);
       baseDate.setHours(hours);
       baseDate.setMinutes(minutes);
 
@@ -82,7 +96,7 @@
         });
 
         const timeString = formatter.format(baseDate);
-        const hour = parseInt(timeString.split(":"[0]));
+        const hour = parseInt(timeString.split(":" )[0]);
         const isOverlap = hour >= 9 && hour <= 17;
 
         table.innerHTML += `
@@ -94,16 +108,19 @@
       });
     }
 
+    function formatDate(d) {
+      const pad = num => num.toString().padStart(2, '0');
+      return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
+    }
+
     function generateMeetingLink() {
       const baseTime = document.getElementById("baseTime").value;
       const selectedZones = Array.from(tzSelect.selectedOptions).map(opt => opt.value);
       if (!baseTime || selectedZones.length === 0) return;
       const now = new Date();
-      const [h, m] = baseTime.split(":").map(Number);
+      const [h, m] = baseTime.split(":" ).map(Number);
       const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
       const endDate = new Date(startDate.getTime() + 30 * 60000);
-      const pad = num => num.toString().padStart(2, '0');
-      const formatDate = d => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
 
       const start = formatDate(startDate);
       const end = formatDate(endDate);
@@ -111,6 +128,51 @@
       const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Team+Meeting&details=Overlap+time+for:+${encodeURIComponent(zones)}&dates=${start}/${end}`;
       window.open(gcalUrl, '_blank');
     }
+
+    function generateTeamsLink() {
+      const baseTime = document.getElementById("baseTime").value;
+      if (!baseTime) return;
+      const [h, m] = baseTime.split(":" ).map(Number);
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+      const endDate = new Date(startDate.getTime() + 30 * 60000);
+
+      const isoStart = startDate.toISOString();
+      const isoEnd = endDate.toISOString();
+
+      const teamsUrl = `https://teams.microsoft.com/l/meeting/new?subject=Team%20Meeting&startTime=${encodeURIComponent(isoStart)}&endTime=${encodeURIComponent(isoEnd)}`;
+      window.open(teamsUrl, '_blank');
+    }
+
+    function generateIcalLink() {
+      const baseTime = document.getElementById("baseTime").value;
+      if (!baseTime) return;
+      const [h, m] = baseTime.split(":" ).map(Number);
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+      const endDate = new Date(startDate.getTime() + 30 * 60000);
+
+      const pad = num => num.toString().padStart(2, '0');
+      const dtFormat = d => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
+
+      const icsContent = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Team Meeting\nDTSTART:${dtFormat(startDate)}\nDTEND:${dtFormat(endDate)}\nDESCRIPTION:Generated from World Time Overlap\nEND:VEVENT\nEND:VCALENDAR`;
+      const blob = new Blob([icsContent], { type: 'text/calendar' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'meeting.ics';
+      a.click();
+    }
+
+    function isAppleDevice() {
+      return /Mac|iPhone|iPad/i.test(navigator.userAgent);
+    }
+
+    window.addEventListener("load", () => {
+      if (isAppleDevice()) {
+        icalButton.style.display = 'inline-block';
+      }
+    });
   </script>
 </body>
 </html>
